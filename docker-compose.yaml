@@ -1,0 +1,7 @@
+services:
+  ffmpeg:
+    build:
+      context: ./src/app/docker/ffmpeg
+    container_name: ai-video-ffmpeg
+    volumes:
+      - ./video-workspace:/workspace

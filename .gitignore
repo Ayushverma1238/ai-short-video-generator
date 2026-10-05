@@ -1,29 +1,98 @@
+# ==========================================
 # Dependencies
-node_modules/
+# ==========================================
 
+node_modules/
+**/node_modules/
+
+
+# ==========================================
 # Next.js
+# ==========================================
+
 .next/
 out/
 
-# Environment variables
+
+# ==========================================
+# Environment Variables
+# ==========================================
+
 .env
 .env.local
 .env.development
 .env.production
 
-# Logs
-*.log
+# Backend environment files
+backend/.env
+backend/.env.local
+backend/.env.development
+backend/.env.production
 
-# Generated files
+# Any environment file inside subdirectories
+**/.env
+**/.env.local
+**/.env.development
+**/.env.production
+
+
+# ==========================================
+# Logs
+# ==========================================
+
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+
+# ==========================================
+# Generated / Temporary Files
+# ==========================================
+
 generated/
 output/
 temp/
 tmp/
 
+# Backend temporary video files
+backend/video-workspace/
+backend/temp/
+backend/output/
+backend/generated/
+
+
+# ==========================================
+# Build Files
+# ==========================================
+
+dist/
+build/
+
+# Backend TypeScript build
+backend/dist/
+
+
+# ==========================================
 # OS
+# ==========================================
+
 .DS_Store
 Thumbs.db
 
+
+# ==========================================
 # IDE
+# ==========================================
+
 .vscode/
 .idea/
+
+
+# ==========================================
+# Docker
+# ==========================================
+
+.docker/
+docker-compose.override.yml

@@ -1,6 +1,6 @@
 FROM node:20-bookworm
 
-# Install FFmpeg
+# Install FFmpeg directly
 RUN apt-get update \
     && apt-get install -y ffmpeg \
     && rm -rf /var/lib/apt/lists/*

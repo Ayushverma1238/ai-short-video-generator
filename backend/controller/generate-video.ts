@@ -31,92 +31,87 @@ interface GenerateVideoRequest {
 }
 
 // =====================================================
-// FFmpeg helper
+// FFmpeg Helper
 // =====================================================
 
-const runFFmpeg = async (args: string[]) => {
+const runFFmpeg = async (args: string[]): Promise<void> => {
   console.log("Starting FFmpeg...");
 
-  const { stdout, stderr } = await execFileAsync(
-    "ffmpeg",
-    args,
-    {
+  try {
+    const { stdout, stderr } = await execFileAsync("ffmpeg", args, {
       maxBuffer: 1024 * 1024 * 20,
+    });
+
+    if (stdout) {
+      console.log("FFmpeg stdout:");
+      console.log(stdout);
     }
-  );
 
-  if (stdout) {
-    console.log(stdout);
-  }
+    if (stderr) {
+      console.log("FFmpeg stderr:");
+      console.log(stderr);
+    }
+  } catch (error) {
+    console.error("FFmpeg execution failed:");
 
-  if (stderr) {
-    console.log(stderr);
+    if (error instanceof Error) {
+      console.error(error.message);
+    }
+
+    throw error;
   }
 };
 
 // =====================================================
-// Download file
+// Download File
 // =====================================================
 
-const downloadFile = async (
-  url: string,
-  filePath: string
-): Promise<void> => {
+const downloadFile = async (url: string, filePath: string): Promise<void> => {
   console.log("Downloading:", url);
 
   const response = await fetch(url);
 
   if (!response.ok) {
     throw new Error(
-      `Failed to download file: ${url} (${response.status})`
+      `Failed to download file: ${url} (${response.status} ${response.statusText})`,
     );
   }
 
-  const buffer = Buffer.from(
-    await response.arrayBuffer()
-  );
+  const buffer = Buffer.from(await response.arrayBuffer());
 
   await fs.writeFile(filePath, buffer);
+
+  console.log(`Downloaded successfully: ${filePath}`);
 };
 
 // =====================================================
-// ASS time format
+// ASS Time Format
 // =====================================================
 
-const formatAssTime = (
-  seconds: number
-): string => {
+const formatAssTime = (seconds: number): string => {
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    return "0:00:00.00";
+  }
+
   const hours = Math.floor(seconds / 3600);
 
-  const minutes = Math.floor(
-    (seconds % 3600) / 60
-  );
+  const minutes = Math.floor((seconds % 3600) / 60);
 
   const secs = Math.floor(seconds % 60);
 
-  const centiseconds = Math.floor(
-    (seconds % 1) * 100
-  );
+  const centiseconds = Math.floor((seconds % 1) * 100);
 
-  return `${hours}:${String(minutes).padStart(
+  return `${hours}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(
     2,
-    "0"
-  )}:${String(secs).padStart(
-    2,
-    "0"
-  )}.${String(centiseconds).padStart(
-    2,
-    "0"
-  )}`;
+    "0",
+  )}.${String(centiseconds).padStart(2, "0")}`;
 };
 
 // =====================================================
-// Escape ASS text
+// Escape ASS Text
 // =====================================================
 
-const escapeAssText = (
-  text: string
-): string => {
+const escapeAssText = (text: string): string => {
   return text
     .replace(/\\/g, "\\\\")
     .replace(/\{/g, "\\{")
@@ -129,26 +124,22 @@ const escapeAssText = (
 
 export const generateVideo = async (
   req: Request,
-  res: Response
+  res: Response,
 ): Promise<void> => {
   let workspace = "";
 
   try {
-    const {
-      images,
-      audioUrl,
-      captions,
-    }: GenerateVideoRequest = req.body;
-
     // =================================================
-    // Validate request
+    // Get Request Data
     // =================================================
 
-    if (
-      !images ||
-      !Array.isArray(images) ||
-      images.length === 0
-    ) {
+    const { images, audioUrl, captions }: GenerateVideoRequest = req.body;
+
+    // =================================================
+    // Validate Images
+    // =================================================
+
+    if (!images || !Array.isArray(images) || images.length === 0) {
       res.status(400).json({
         success: false,
         error: "Images are required",
@@ -157,7 +148,11 @@ export const generateVideo = async (
       return;
     }
 
-    if (!audioUrl) {
+    // =================================================
+    // Validate Audio
+    // =================================================
+
+    if (!audioUrl || typeof audioUrl !== "string") {
       res.status(400).json({
         success: false,
         error: "Audio URL is required",
@@ -166,11 +161,11 @@ export const generateVideo = async (
       return;
     }
 
-    if (
-      !captions ||
-      !Array.isArray(captions) ||
-      captions.length === 0
-    ) {
+    // =================================================
+    // Validate Captions
+    // =================================================
+
+    if (!captions || !Array.isArray(captions) || captions.length === 0) {
       res.status(400).json({
         success: false,
         error: "Captions are required",
@@ -180,24 +175,24 @@ export const generateVideo = async (
     }
 
     // =================================================
-    // Create unique workspace
+    // Create Unique Temporary Workspace
     // =================================================
 
     const workspaceId = crypto.randomUUID();
 
-    workspace = path.join(
-      os.tmpdir(),
-      `video-${workspaceId}`
-    );
+    workspace = path.join(os.tmpdir(), `video-${workspaceId}`);
 
     await fs.mkdir(workspace, {
       recursive: true,
     });
 
-    console.log("================================");
+    console.log("========================================");
+
     console.log("VIDEO GENERATION STARTED");
+
+    console.log("========================================");
+
     console.log("Workspace:", workspace);
-    console.log("================================");
 
     // =================================================
     // 1. Download Images
@@ -206,47 +201,36 @@ export const generateVideo = async (
     const imagePaths: string[] = [];
 
     for (let i = 0; i < images.length; i++) {
-      const imagePath = path.join(
-        workspace,
-        `image-${i}.jpg`
-      );
+      const image = images[i];
 
-      await downloadFile(
-        images[i].imageUrl,
-        imagePath
-      );
+      if (!image || !image.imageUrl) {
+        throw new Error(`Image URL missing for scene ${i + 1}`);
+      }
+
+      const imagePath = path.join(workspace, `image-${i}.jpg`);
+
+      await downloadFile(image.imageUrl, imagePath);
 
       imagePaths.push(imagePath);
 
-      console.log(
-        `Image ${i + 1}/${images.length} downloaded`
-      );
+      console.log(`Image ${i + 1}/${images.length} downloaded`);
     }
 
     // =================================================
     // 2. Download Audio
     // =================================================
 
-    const audioPath = path.join(
-      workspace,
-      "audio.mp3"
-    );
+    const audioPath = path.join(workspace, "audio.mp3");
 
-    await downloadFile(
-      audioUrl,
-      audioPath
-    );
+    await downloadFile(audioUrl, audioPath);
 
-    console.log("Audio downloaded");
+    console.log("Audio downloaded successfully");
 
     // =================================================
-    // 3. Create ASS subtitles
+    // 3. Create ASS Subtitle File
     // =================================================
 
-    const subtitlesPath = path.join(
-      workspace,
-      "captions.ass"
-    );
+    const subtitlesPath = path.join(workspace, "captions.ass");
 
     let assContent = `[Script Info]
 ScriptType: v4.00+
@@ -262,80 +246,74 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
 
     for (const caption of captions) {
-      const start = formatAssTime(
-        caption.start
-      );
+      const start = formatAssTime(caption.start);
 
-      const end = formatAssTime(
-        caption.end
-      );
+      const end = formatAssTime(caption.end);
 
-      const text = escapeAssText(
-        caption.text
-      );
+      const text = escapeAssText(caption.text);
 
-      assContent +=
-        `Dialogue: 0,${start},${end},Default,,0,0,0,,${text}\n`;
+      assContent += `Dialogue: 0,${start},${end},Default,,0,0,0,,${text}\n`;
     }
 
-    await fs.writeFile(
-      subtitlesPath,
-      assContent,
-      "utf8"
-    );
+    await fs.writeFile(subtitlesPath, assContent, "utf8");
 
     console.log("Captions file created");
 
     // =================================================
-    // 4. Create FFmpeg concat file
+    // 4. Create FFmpeg Concat File
     // =================================================
 
-    const concatPath = path.join(
-      workspace,
-      "images.txt"
-    );
+    const concatPath = path.join(workspace, "images.txt");
 
     const imageDuration = 5;
 
     let concatContent = "";
 
     for (const imagePath of imagePaths) {
-      // FFmpeg concat file uses absolute paths
+      /*
+       * FFmpeg concat demuxer requires
+       * file paths and duration.
+       *
+       * Use absolute paths because all files
+       * are inside the same temporary workspace.
+       */
+
       concatContent += `file '${imagePath}'\n`;
       concatContent += `duration ${imageDuration}\n`;
     }
 
-    // FFmpeg concat requires last image twice
-    const lastImage =
-      imagePaths[imagePaths.length - 1];
+    /*
+     * FFmpeg concat requires the final image
+     * to be repeated.
+     */
+
+    const lastImage = imagePaths[imagePaths.length - 1];
+
+    if (!lastImage) {
+      throw new Error("No images available for FFmpeg");
+    }
 
     concatContent += `file '${lastImage}'\n`;
 
-    await fs.writeFile(
-      concatPath,
-      concatContent,
-      "utf8"
-    );
+    await fs.writeFile(concatPath, concatContent, "utf8");
 
-    console.log(
-      "FFmpeg concat file created"
-    );
+    console.log("FFmpeg concat file created");
 
     // =================================================
-    // 5. Output
+    // 5. Output File
     // =================================================
 
-    const outputPath = path.join(
-      workspace,
-      "output.mp4"
-    );
+    const outputPath = path.join(workspace, "output.mp4");
 
     // =================================================
-    // 6. Run FFmpeg
+    // 6. FFmpeg Arguments
     // =================================================
 
-    const ffmpegArgs = [
-      // Image concat
+    const ffmpegArgs: string[] = [
+      // -----------------------------------------------
+      // Input images
+      // -----------------------------------------------
+
       "-f",
       "concat",
 
@@ -345,15 +323,24 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       "-i",
       concatPath,
 
-      // Audio
+      // -----------------------------------------------
+      // Input audio
+      // -----------------------------------------------
+
       "-i",
       audioPath,
 
-      // Video processing
+      // -----------------------------------------------
+      // Video filter
+      // -----------------------------------------------
+
       "-vf",
       `scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,ass=${subtitlesPath}`,
 
+      // -----------------------------------------------
       // Video codec
+      // -----------------------------------------------
+
       "-c:v",
       "libx264",
 
@@ -366,52 +353,59 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       "-pix_fmt",
       "yuv420p",
 
+      // -----------------------------------------------
       // Audio codec
+      // -----------------------------------------------
+
       "-c:a",
       "aac",
 
       "-b:a",
       "192k",
 
-      // Stop when shortest stream ends
+      // -----------------------------------------------
+      // Stop when shortest input ends
+      // -----------------------------------------------
+
       "-shortest",
 
-      // Overwrite output
+      // -----------------------------------------------
+      // Overwrite existing output
+      // -----------------------------------------------
+
       "-y",
+
+      // -----------------------------------------------
+      // Output
+      // -----------------------------------------------
 
       outputPath,
     ];
 
-    console.log(
-      "Running FFmpeg..."
-    );
+    // =================================================
+    // 7. Run FFmpeg
+    // =================================================
+
+    console.log("Running FFmpeg...");
 
     await runFFmpeg(ffmpegArgs);
 
-    console.log(
-      "FFmpeg video generated successfully"
-    );
+    console.log("FFmpeg video generated successfully");
 
     // =================================================
-    // 7. Read generated video
+    // 8. Check Output
     // =================================================
 
-    const videoBuffer = await fs.readFile(
-      outputPath
-    );
+    const videoBuffer = await fs.readFile(outputPath);
 
-    if (!videoBuffer.length) {
-      throw new Error(
-        "Generated video is empty"
-      );
+    if (!videoBuffer || videoBuffer.length === 0) {
+      throw new Error("Generated video is empty");
     }
 
-    console.log(
-      `Video size: ${videoBuffer.length} bytes`
-    );
+    console.log(`Video generated successfully: ${videoBuffer.length} bytes`);
 
     // =================================================
-    // 8. Cleanup
+    // 9. Cleanup
     // =================================================
 
     await fs.rm(workspace, {
@@ -419,71 +413,66 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       force: true,
     });
 
-    console.log(
-      "Temporary files cleaned"
-    );
+    console.log("Temporary files cleaned");
 
     // =================================================
-    // 9. Return video
+    // 10. Send Video Response
     // =================================================
 
     res.status(200);
 
-    res.setHeader(
-      "Content-Type",
-      "video/mp4"
-    );
+    res.setHeader("Content-Type", "video/mp4");
 
     res.setHeader(
       "Content-Disposition",
-      'inline; filename="generated-video.mp4"'
+      'inline; filename="generated-video.mp4"',
     );
 
-    res.setHeader(
-      "Content-Length",
-      videoBuffer.length.toString()
-    );
+    res.setHeader("Content-Length", videoBuffer.length.toString());
 
     res.send(videoBuffer);
-
   } catch (error) {
-    console.error(
-      "================================"
-    );
+    // =================================================
+    // Error Logging
+    // =================================================
 
-    console.error(
-      "VIDEO GENERATION ERROR"
-    );
+    console.error("========================================");
 
-    console.error(
-      "================================"
-    );
+    console.error("VIDEO GENERATION ERROR");
+
+    console.error("========================================");
 
     console.error(error);
 
-    // Cleanup even if generation fails
+    // =================================================
+    // Cleanup Workspace
+    // =================================================
+
     if (workspace) {
       try {
         await fs.rm(workspace, {
           recursive: true,
           force: true,
         });
+
+        console.log("Workspace cleaned after error");
       } catch (cleanupError) {
-        console.error(
-          "Cleanup failed:",
-          cleanupError
-        );
+        console.error("Cleanup failed:", cleanupError);
       }
     }
 
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Video generation failed";
+    // =================================================
+    // Error Response
+    // =================================================
 
-    res.status(500).json({
-      success: false,
-      error: message,
-    });
+    const message =
+      error instanceof Error ? error.message : "Video generation failed";
+
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: message,
+      });
+    }
   }
 };

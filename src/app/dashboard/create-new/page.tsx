@@ -312,7 +312,7 @@ Return this exact structure:
     console.log("Sending assets to video generator...");
 
     const response = await axios.post(
-      "/api/generate-video",
+      process.env.BACKEND_URI as string,
       {
         images: generatedImages,
         audioUrl: generatedAudioUrl,

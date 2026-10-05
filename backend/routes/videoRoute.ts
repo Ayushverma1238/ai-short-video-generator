@@ -1,4 +1,4 @@
-import { generateVideo } from "../controller/generate-video";
+import { generateVideo } from "../controller/generate-video.js";
 
 import Router from 'express'
 const router = Router();

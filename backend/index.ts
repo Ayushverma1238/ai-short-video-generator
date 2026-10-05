@@ -2,7 +2,7 @@ import express from "express";
 import { configDotenv } from "dotenv";
 import cors from "cors";
 
-import videoRouter from "./routes/videoRoute";
+import videoRouter from "./routes/videoRoute.js";
 
 configDotenv();
 

@@ -14,19 +14,19 @@ const SelectStyle = ({ onUserSelect }: UserSelectProps) => {
     },
     {
       name: "Cartoon",
-      image: "/styles/cartoon.jfif",
+      image: "/styles/cartoon.jpeg",
     },
     {
       name: "Comic",
-      image: "/styles/comic.jfif",
+      image: "/styles/comic.jpeg",
     },
     {
       name: "WaterColor",
-      image: "/styles/watercolor.jfif",
+      image: "/styles/watercolor.jpeg",
     },
     {
       name: "GTA",
-      image: "/styles/gta.jfif",
+      image: "/styles/gta.jpeg",
     },
   ];
   const [selectedOption, setSelectedOption] = useState("");
